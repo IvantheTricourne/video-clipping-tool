@@ -4,6 +4,10 @@
    [clojure.string :as str]
    [clojure.java.shell :as shell]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; clip file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn- make-clip-range
   "TODO: allow for ranges and not just direct times"
   [clip-range-str]
@@ -17,6 +21,19 @@
        (map-indexed (fn [idx itm] [idx (make-clip-range itm)]))
        (into {})))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; run commands
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- run-command
+  "A command is a space separated list"
+  [cmd]
+  (apply shell/sh cmd))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; generate ffmpeg commands
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn- generate-clip-command
   [idx start-time end-time video output]
   (let [output-file-name (format "clip-%s.mp4" idx)
@@ -24,49 +41,72 @@
         input  (str video)]
     [idx ["ffmpeg" "-i" input "-ss" start-time "-to" end-time "-async" "1" "-strict" "-2" output]]))
 
-(defn- generate-ffmpeg-commands
+(defn- generate-command-map
+  "Creates clip commands for generation"
   [parsed-clip-file video output]
   (->> (for [[idx [start end]] parsed-clip-file]
          (generate-clip-command idx start end video output))
        (into {})))
 
-(defn- run-command
-  "A command is a space separated list"
-  [cmd]
-  (apply shell/sh cmd))
+(defn- generate-clip-order-file
+  [command-map output]
+  (let [stop (count (keys command-map))]
+    (->> (for [i (range stop)]
+           (let [cmd (get command-map i)]
+             (format "file '%s'" (last cmd))))
+         (str/join \newline))))
 
-(defn- run-ffmpeg-commands
-  [ffmpeg-commands]
-  (let [stop (count (keys ffmpeg-commands))]
+(defn- generate-combine-command
+  [clip-order-file output-mp4-file]
+  (let [clip-order-file (str clip-order-file)
+        output-mp4-file (str output-mp4-file)]
+    ["ffmpeg" "-f" "concat" "-safe" "0" "-i" clip-order-file "-c" "copy" output-mp4-file]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; run
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- run-clip-commands
+  [command-map]
+  (let [stop (count (keys command-map))]
     (doseq [i (range stop)]
-      (let [cmd (get ffmpeg-commands i)]
+      (let [cmd (get command-map i)]
         (println "Generating mp4...")
         (run-command cmd)
-        (println "Generated mp4: " (last cmd))))))
+        (println "Generated mp4: " (last cmd))))
+    (println command-map)
+    command-map))
 
-(comment
+(defn- run-make-clip-order-file
+  [command-map output]
+  (let [clip-order-str
+        (generate-clip-order-file command-map output)
 
-  (shell/sh "ls" "-al")
-  (apply shell/sh ["ls" "-al" "/Users/carl/"])
+        order-file
+        (io/file output "clip-order.txt")]
+    (binding [*out* (io/writer order-file)]
+      (println clip-order-str))
+    order-file))
 
-  ;; gen command
-  ["ffmpeg" "-i" video "-ss" start-time "-to" end-time "-async" "1" "-strict" "-2" output]
+(defn- run-combine-command
+  [clip-order-file output-file]
+  (let [cmd (generate-combine-command clip-order-file output-file)]
+    (println "Combining clips... this could take a while.")
+    (run-command cmd)
+    (println "Combined clips: " (last cmd))))
 
-  (def test-video-file (io/file "/Users/carl/Code/video-clipping-tool/test-video.mp4"))
-  (def test-clip-file (io/file "/Users/carl/Code/video-clipping-tool/test.clips"))
-  (str test-clip-file)
-  (def test-output-dir (io/file "/Users/carl/Code/video-clipping-tool/output/"))
-
-  (def parsed-clip-file (read-clip-file test-clip-file))
-
-  (generate-ffmpeg-commands parsed-clip-file test-video-file test-output-dir)
-  )
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; top level call
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn create-reel
-  "Top level call"
   [video clips output options]
-  (-> clips
-      (read-clip-file)
-      (generate-ffmpeg-commands video output)
-      (run-ffmpeg-commands)))
+  (let [clip-map
+        (read-clip-file clips)
+
+        command-map
+        (generate-command-map clip-map video output)]
+    (-> command-map
+        (run-clip-commands)
+        (run-make-clip-order-file output)
+        (run-combine-command (io/file output "output.mp4")))))
