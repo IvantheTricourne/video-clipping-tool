@@ -1,11 +1,12 @@
 # video-clipping-tool
 
-Clip vids and stitch them back together.
+Make video clips, then stitch them back together.
 
 ## Usage
 
 * Requires Java 8.
-* Requires `lein`
+* Requires `lein` to build/run locally.
+* Requires `ffmpeg` for video splitting/combining.
 
 Run `lein install`. Optionally, run `lein uberjar` to generate a standlone executable `.jar` file. Otherwise:
 
