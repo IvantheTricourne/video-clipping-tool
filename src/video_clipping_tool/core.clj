@@ -73,9 +73,9 @@
   (let [stop (count (keys command-map))]
     (doseq [i (range stop)]
       (let [{:keys [cmd start end]} (get command-map i)]
-        (println (format "Generating clip (%s - %s) ..." start end))
+        (println (format "Generating clip (timestamp: %s - %s) ..." start end))
         (run-command cmd)
-        (println "Generated mp4: " (last cmd))))
+        (println "Generated clip: " (last cmd))))
     command-map))
 
 (defn- run-make-clip-order-file
