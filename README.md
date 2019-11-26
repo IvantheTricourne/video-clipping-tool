@@ -10,7 +10,7 @@ Clip vids and stitch them back together.
 Run `lein install`. Optionally, run `lein uberjar` to generate a standlone executable `.jar` file. Otherwise:
 
 ```
-lein run --clips CLIP_FILE --output OUTPUT_FILE
+lein run --video VIDEO_FILE --clips CLIP_FILE --output OUTPUT_FILE
 ```
 
 ## License
