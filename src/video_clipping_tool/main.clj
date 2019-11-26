@@ -11,8 +11,11 @@
    ["-c" "--clips CLIPS" "Set location of clip file"
     :id :clips]
    ["-o" "--output OUTPUT" "Sets output directory location (must use full path)"
-    :id :output
-    ]])
+    :id :output]
+   ["-s" "--split-only" "Does not combine clips."
+    :id :split-only
+    :default false]])
+
 
 (defn -main
   [& args]

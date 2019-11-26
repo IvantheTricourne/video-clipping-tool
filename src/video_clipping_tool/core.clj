@@ -105,10 +105,11 @@
         (read-clip-file clips)
 
         command-map
-        (generate-command-map clip-map video output)
-
-        ]
-    (-> command-map
-        (run-clip-commands)
-        (run-make-clip-order-file output)
-        (run-combine-command (io/file output "output.mp4")))))
+        (generate-command-map clip-map video output)]
+    (cond-> command-map
+      true (run-clip-commands)
+      ;; combine clips (or not)
+      (not (:split-only options))
+      (run-make-clip-order-file output)
+      (not (:split-only options))
+      (run-combine-command (io/file output "output.mp4")))))
