@@ -39,7 +39,9 @@
   (let [output-file-name (format "clip-%s.mp4" idx)
         output (str (io/file output output-file-name))
         input  (str video)]
-    [idx ["ffmpeg" "-i" input "-ss" start-time "-to" end-time "-async" "1" "-strict" "-2" output]]))
+    [idx {:cmd ["ffmpeg" "-i" input "-ss" start-time "-to" end-time "-async" "1" "-strict" "-2" output]
+          :start start-time
+          :end end-time}]))
 
 (defn- generate-command-map
   "Creates clip commands for generation"
@@ -52,7 +54,7 @@
   [command-map output]
   (let [stop (count (keys command-map))]
     (->> (for [i (range stop)]
-           (let [cmd (get command-map i)]
+           (let [{:keys [cmd]} (get command-map i)]
              (format "file '%s'" (last cmd))))
          (str/join \newline))))
 
@@ -70,11 +72,10 @@
   [command-map]
   (let [stop (count (keys command-map))]
     (doseq [i (range stop)]
-      (let [cmd (get command-map i)]
-        (println "Generating mp4...")
+      (let [{:keys [cmd start end]} (get command-map i)]
+        (println (format "Generating clip (%s - %s) ..." start end))
         (run-command cmd)
         (println "Generated mp4: " (last cmd))))
-    (println command-map)
     command-map))
 
 (defn- run-make-clip-order-file
@@ -104,7 +105,9 @@
         (read-clip-file clips)
 
         command-map
-        (generate-command-map clip-map video output)]
+        (generate-command-map clip-map video output)
+
+        ]
     (-> command-map
         (run-clip-commands)
         (run-make-clip-order-file output)
