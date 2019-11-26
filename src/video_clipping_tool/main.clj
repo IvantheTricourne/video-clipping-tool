@@ -10,9 +10,9 @@
     :id :video]
    ["-c" "--clips CLIPS" "Set location of clip file"
     :id :clips]
-   ["-o" "--output OUTPUT" "Sets output mp4 location"
+   ["-o" "--output OUTPUT" "Sets output directory location"
     :id :output
-    :default "output.mp4"]])
+    :default "output"]])
 
 (defn -main
   [& args]
