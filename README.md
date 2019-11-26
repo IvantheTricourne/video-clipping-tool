@@ -16,7 +16,7 @@ lein run --video VIDEO_FILE --clips CLIP_FILE --output OUTPUT_FILE
 
 ## License
 
-Copyright © 2018 IvantheTricourne
+Copyright © 2019 IvantheTricourne
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
