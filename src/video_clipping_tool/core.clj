@@ -92,8 +92,7 @@
   [clip-order-file output-file]
   (let [cmd (generate-combine-command clip-order-file output-file)]
     (println "Combining clips... this could take a while.")
-    (run-command cmd)
-    (println "Combined clips: " (last cmd))))
+    (run-command cmd)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; top level call

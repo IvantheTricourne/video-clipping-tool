@@ -10,12 +10,11 @@
     :id :video]
    ["-c" "--clips CLIPS" "Set location of clip file"
     :id :clips]
-   ["-o" "--output OUTPUT" "Sets output directory location"
+   ["-o" "--output OUTPUT" "Sets output directory location (must use full path)"
     :id :output
     ]])
 
 (defn -main
-  "you must use full paths"
   [& args]
   (let [{:keys [options summary]}  (cli/parse-opts args cli-opts)
         {:keys [clips video output]} options]
