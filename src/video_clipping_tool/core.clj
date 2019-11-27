@@ -8,10 +8,48 @@
 ;; clip file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn parse-timestamp
+  [timestamp-str]
+  (let [[h m s] (mapv read-string (str/split timestamp-str #":"))]
+    {:hour h :minute m :second s}))
+
+(defn timestamp-to-str
+  [{:keys [hour minute second]}]
+  (->> [hour minute second]
+       (mapv #(if (< % 10) (str 0 %) %))
+       (str/join ":" )))
+
+(defn- handle-overflow
+  [m-or-s]
+  (if (>= m-or-s 60)
+    [(- m-or-s 60) inc]
+    [m-or-s identity]))
+
+(defn add-timestamps
+  [t1 t2]
+  (let [[s m-over]
+        (handle-overflow (+ (:second t1) (:second t2)))
+
+        [m h-over]
+        (handle-overflow (m-over (+ (:minute t1) (:minute t2))))
+
+        h
+        (h-over (+ (:hour t1) (:hour t2)))]
+    {:hour h :minute m :second s}))
+
 (defn make-clip-range
-  "TODO: allow for ranges and not just direct times"
   [clip-range-str]
-  (str/split clip-range-str #" "))
+  (let [split-str (str/split clip-range-str #" ")]
+    (cond
+      (= (count split-str) 3)
+      (let [[t1 op t2] split-str
+            p1 (parse-timestamp t1)
+            p2 (parse-timestamp t2)]
+        (case op
+          ;; clip length to range
+          "+" [t1 (timestamp-to-str (add-timestamps p1 p2))]
+          [t1 t2]))
+      :else split-str)))
 
 (defn read-clip-file
   [clips]

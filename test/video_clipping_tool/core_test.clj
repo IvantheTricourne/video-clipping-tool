@@ -3,10 +3,37 @@
             [video-clipping-tool.core :refer :all]
             [clojure.java.io :as io]))
 
+(deftest timestamp-test
+  (testing "Parsing"
+    (is (= (parse-timestamp "30:20:10")
+           {:hour 30
+            :minute 20
+            :second 10})))
+  (testing "Parsing identity"
+    (is (= (timestamp-to-str (parse-timestamp "30:20:10"))
+           "30:20:10")))
+  (testing "Addition with overflow"
+    (is (= (timestamp-to-str
+            (add-timestamps
+             (parse-timestamp "99:00:59")
+             (parse-timestamp "01:59:01")))
+           "101:00:00"))))
+
 (deftest make-clip-range-test
   (testing "Parsing clip with direct times"
     (is (= (make-clip-range "00:00:00 00:00:30")
-           ["00:00:00" "00:00:30"]))))
+           ["00:00:00" "00:00:30"])))
+  (testing "Parsing clip with operations"
+    ;; special addition
+    (is (= (make-clip-range "00:00:00 + 00:00:30")
+           ["00:00:00" "00:00:30"]))
+    (is (= (make-clip-range "00:00:30 + 00:00:30")
+           ["00:00:30" "00:01:00"]))
+    ;; everything else
+    (is (= (make-clip-range "00:00:30 - 00:01:00")
+           ["00:00:30" "00:01:00"]))
+    (is (= (make-clip-range "00:00:30 to 00:01:00")
+           ["00:00:30" "00:01:00"]))))
 
 (deftest read-clip-file-test
   (testing "Parsing clip file"
