@@ -9,4 +9,5 @@
   :profiles
   {:uberjar {:main video-clipping-tool.main
              :aot  :all}}
-  :java-source-paths ["src"])
+  :java-source-paths ["src"]
+  :resource-paths ["rsrc"])
