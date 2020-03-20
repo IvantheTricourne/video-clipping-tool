@@ -5,12 +5,20 @@
    [clojure.java.shell :as shell]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; clip file
+;; timestamp
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn better-read-string
+  "read-string fails for 08 and 09"
+  [number-str]
+  (case number-str
+    "09" 9
+    "08" 8
+    (read-string number-str)))
 
 (defn parse-timestamp
   [timestamp-str]
-  (let [[h m s] (mapv read-string (str/split timestamp-str #":"))]
+  (let [[h m s] (mapv better-read-string (str/split timestamp-str #":"))]
     {:hour h :minute m :second s}))
 
 (defn timestamp-to-str
@@ -19,23 +27,25 @@
        (mapv #(if (< % 10) (str 0 %) %))
        (str/join ":" )))
 
-(defn- handle-overflow
-  [m-or-s]
-  (if (>= m-or-s 60)
-    [(- m-or-s 60) inc]
-    [m-or-s identity]))
-
 (defn add-timestamps
   [t1 t2]
-  (let [[s m-over]
-        (handle-overflow (+ (:second t1) (:second t2)))
+  (letfn [(handle-overflow [m-or-s]
+            (if (>= m-or-s 60)
+              [(- m-or-s 60) inc]
+              [m-or-s identity]))]
+    (let [[s m-over]
+          (handle-overflow (+ (:second t1) (:second t2)))
 
-        [m h-over]
-        (handle-overflow (m-over (+ (:minute t1) (:minute t2))))
+          [m h-over]
+          (handle-overflow (m-over (+ (:minute t1) (:minute t2))))
 
-        h
-        (h-over (+ (:hour t1) (:hour t2)))]
-    {:hour h :minute m :second s}))
+          h
+          (h-over (+ (:hour t1) (:hour t2)))]
+      {:hour h :minute m :second s})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; clip file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn make-clip-range
   [clip-range-str]
@@ -59,21 +69,24 @@
        (map-indexed (fn [idx itm] [idx (make-clip-range itm)]))
        (into {})))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; run commands
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(comment
+  (read-clip-file
+   (io/file "/Users/carl/Code/video-clipping-tool/test-files/test.clips"))
 
-(defn- run-command
-  "A command is a space separated list"
-  [cmd]
-  (apply shell/sh cmd))
+  (read-clip-file
+   (io/file "/Users/carl/Code/video-clipping-tool/test.clips"))
+
+  
+  (+ (read-string "04") (read-string "01"))
+  (+ (read-string "10") (read-string "01"))
+  (read-string "8")
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; generate ffmpeg commands
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn generate-clip-command
-  "TODO: allow for ranges"
   [input output start-time end-time]
   (-> (format "ffmpeg -i %s -ss %s -to %s -async 1 -strict 2 %s"
               input start-time end-time output)
@@ -111,8 +124,81 @@
          (str/join \newline))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; run
+;; run commands
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- run-command
+  "A command is a space separated list"
+  [cmd]
+  (apply shell/sh cmd))
+
+
+(comment
+  ;; this takes a while
+  (def ffmpeg-out
+    (run-command (str/split
+                  "ffmpeg -i /Users/carl/Code/video-clipping-tool/test.mkv -vf blackdetect=d=0.000001:pix_th=.0001 -f null -"
+                  #" ")))
+
+  ;; get black lines
+  (def black-detect-lines
+    (filterv
+     #(str/starts-with? % "[blackdetect")
+     (str/split (:err ffmpeg-out) #"\r")))
+
+  (count black-detect-lines) ;; => 21
+
+  ;; get rid of frames
+  (def without-frames-printout
+    (mapv
+     first
+     (mapv
+      #(str/split % #"\n")
+      black-detect-lines)))
+
+  (count without-frames-printout)
+  (doseq [bf without-frames-printout]
+    (println bf))
+
+  (defn seconds2time [s]
+    (let [hours (int (Math/floor (/ (/ s 60.0) 60)))
+          mins (int (Math/floor (mod (/ s 60.0) 60)))
+          sec (int (Math/floor (- s (* mins 60))))]
+      {:hour hours
+       :minute mins
+       :second sec}))
+
+  (int (Math/floor (mod (/ 125 60.0) 60)))
+  (seconds2time 91.533)
+
+  ;; parse into a data structure
+  (defn get-blacks [without-frames]
+    (let [[start end length]
+          (mapv #(read-string (first (str/split % #" ")))
+                (rest
+                 (str/split
+                  without-frames
+                  #":")))]
+      {:start (timestamp-to-str (seconds2time start))
+       :end (timestamp-to-str (seconds2time end))
+       :length length}))
+
+  (def timestamps
+    (mapv get-blacks without-frames-printout))
+
+  (defn gen-timestamp-file-str
+    [timestamps]
+    (if (empty? (rest timestamps))
+      ""
+      (let [{:keys [end]} (first timestamps)
+            {:keys [start]} (first (rest timestamps))
+            line (format "%s - %s\n" end start)]
+        (str line (gen-timestamp-file-str (rest timestamps))))))
+  
+  (binding [*out* (io/writer (io/file "/Users/carl/Code/video-clipping-tool/test.clips"))]
+    (println (gen-timestamp-file-str timestamps)))
+  
+  )
 
 (defn- run-clip-commands
   [clip-index options]
